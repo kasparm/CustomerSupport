@@ -177,5 +177,6 @@ for question in tutorial_questions:
     )
     for event in events:
         _print_event(event, _printed)
-    
+        
+    # Sleep for a bit to allow the API to work with rate limits
     time.sleep(10)
