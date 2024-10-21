@@ -1,2 +1,7 @@
 .env
 __pycache__/
+#chainlit
+.chainlit/
+chainlit.md
+travel2.backup.sqlite
+travel2.sqlite
