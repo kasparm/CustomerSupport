@@ -4,6 +4,16 @@ import uuid
 import time
 
 import chainlit as cl
+import logging
+logging.basicConfig(
+    filename="app.log",
+    encoding="utf-8",
+    filemode="a",
+    level=logging.DEBUG,
+    format="{asctime} - {levelname} - {message}",
+    style="{",
+    datefmt="%Y-%m-%d %H:%M",
+)
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
@@ -38,6 +48,8 @@ from langgraph.graph import END, StateGraph, START
 from langgraph.prebuilt import tools_condition
 
 _printed = set()
+_config = None
+_thread_id = str(uuid.uuid4())
 
 class State(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
@@ -68,7 +80,7 @@ class Assistant:
 
 @cl.on_chat_start
 async def on_chat_start():
-    print("Chat started")
+    logging.info("Chat setup")
     # Haiku is faster and cheaper, but less accurate
     # llm = ChatAnthropic(model="claude-3-haiku-20240307")
     # llm = ChatAnthropic(model="claude-3-sonnet-20240229", temperature=1)
@@ -143,34 +155,40 @@ async def on_chat_start():
     memory = MemorySaver()
     part_1_graph = builder.compile(checkpointer=memory)
 
+
+    # Update with the backup file so we can restart from the original place in each section
+    logging.info("Start db update")
+    db.update_dates()
+    logging.info("DB update done")
+    
+
     # save graph and state to the user session
     cl.user_session.set("graph", part_1_graph)
+    logging.info("Setup Done")
 
 
 @cl.on_message
 async def on_chat_message(message: cl.Message):
+    logging.info("Chat message start")
     part_1_graph: Runnable = cl.user_session.get("graph")
 
-   
+    ui_message = cl.Message(content="")
+    await ui_message.send()
+    logging.info("Message received")
 
-    # Update with the backup file so we can restart from the original place in each section
-    db.update_dates()
-    thread_id = str(uuid.uuid4())
 
-    config = {
+    _config = {
         "configurable": {
             # The passenger_id is used in our flight tools to
             # fetch the user's flight information
             "passenger_id": "3442 587242",
             # Checkpoints are accessed by thread_id
-            "thread_id": thread_id,
+            "thread_id": _thread_id,
         }
     }
 
-    ui_message = cl.Message(content="")
-    await ui_message.send()
     events = part_1_graph.stream(
-        {"messages": ("user", message.content)}, config, stream_mode="values"
+        {"messages": ("user", message.content)}, _config, stream_mode="values"
     )
     for event in events:
         #_print_event(event, _printed)
@@ -185,6 +203,7 @@ async def on_chat_message(message: cl.Message):
         if message[-1].type == "ai":
             await ui_message.stream_token(token=message[-1].content)
     await ui_message.update()
+    logging.info("Message response delivered")
 
     # Sleep for a bit to allow the API to work with rate limits
    # time.sleep(10)
