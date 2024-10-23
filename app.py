@@ -49,7 +49,7 @@ from langgraph.prebuilt import tools_condition
 
 _printed = set()
 _config = None
-_thread_id = str(uuid.uuid4())
+_thread_id = None
 
 class State(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
@@ -161,7 +161,7 @@ async def on_chat_start():
     db.update_dates()
     logging.info("DB update done")
     
-
+    _thread_id = cl.context.session.thread_id
     # save graph and state to the user session
     cl.user_session.set("graph", part_1_graph)
     logging.info("Setup Done")
